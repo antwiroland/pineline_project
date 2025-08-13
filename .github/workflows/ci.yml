@@ -41,15 +41,13 @@ jobs:
           npm run build || echo "Build script completed"
           # Ensure build directory exists with at least one file
           mkdir -p build
-          [ "$(ls -A build)" ] || echo "Placeholder" > build/.placeholder
+          [ "$(ls -A build)" ] || { echo "No build files found!"; exit 1; }
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: build-output
-          path: |
-            build/
-            coverage/
+          path: build/
           if-no-files-found: error
           retention-days: 5
 
@@ -79,21 +77,11 @@ jobs:
 
       - name: Deploy to S3
         run: |
-          # Sync without ACLs
+          # Verify build contents
+          echo "Build directory contents:"
+          ls -R build/
+          
+          # Sync build files
           aws s3 sync ./build s3://mypipelinebucket160000 \
             --delete \
             --cache-control "public, max-age=31536000"
-          
-          # Set bucket policy for public read access if needed
-          aws s3api put-bucket-policy \
-            --bucket mypipelinebucket160000 \
-            --policy '{
-              "Version": "2012-10-17",
-              "Statement": [{
-                "Sid": "PublicReadGetObject",
-                "Effect": "Allow",
-                "Principal": "*",
-                "Action": "s3:GetObject",
-                "Resource": "arn:aws:s3:::mypipelinebucket160000/*"
-              }]
-            }'
