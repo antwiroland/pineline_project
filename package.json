@@ -5,8 +5,7 @@
     "main": "index.js",
     "scripts": {
         "test": "jest",
-        "test:watch": "jest --watch",
-        "test:coverage": "jest --coverage"
+        "test:ci": "jest --ci --coverage"
     },
     "repository": {
         "type": "git",
@@ -18,5 +17,8 @@
     "bugs": {
         "url": "https://github.com/antwiroland/pineline_project/issues"
     },
-    "homepage": "https://github.com/antwiroland/pineline_project#readme"
+    "homepage": "https://github.com/antwiroland/pineline_project#readme",
+    "devDependencies": {
+        "jest": "^30.0.5"
+    }
 }

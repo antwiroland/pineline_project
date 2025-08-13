@@ -34,7 +34,9 @@ jobs:
 
       # 4. Run tests with coverage
       - name: Run tests
-        run: npm test -- --ci --coverage
+        run: |
+          npm install -g jest 
+          npm test -- --ci --coverage
         env:
           CI: true # Run in CI mode
 
