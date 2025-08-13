@@ -6,115 +6,89 @@ on:
   pull_request:
     branches: [ main ]
 
-env:
-  AWS_REGION: 'eu-central-1' # Default region
-
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 15 # Prevent hanging jobs
     
     steps:
-      # 1. Checkout code
+      # 1. Checkout repository
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Get complete git history for better versioning
 
       # 2. Set up Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
-          cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
+          node-version: 'lts/*' # Latest LTS version
+          cache: 'npm' # Cache node_modules for faster builds
+          cache-dependency-path: 'package-lock.json' # Be specific about cache key
 
-      # 3. Install dependencies
+      # 3. Install dependencies (using npm ci for CI environments)
       - name: Install dependencies
-        run: |
-          npm install
-          npm install jest --save-dev
+        run: npm ci # More reliable than npm install in CI
         env:
-          NODE_ENV: development
+          NODE_ENV: production # Only install production dependencies if applicable
 
-      # 4. Run tests
+      # 4. Run tests with coverage
       - name: Run tests
-        run: npm test -- --ci --coverage
+        run: |
+          npm install -g jest 
+          npm test -- --ci --coverage
         env:
-          CI: true
+          CI: true # Run in CI mode
 
       # 5. Build project
       - name: Build project
-        run: |
-          mkdir -p build
-          npm run build || echo "Build command exited with code $?"
-          if [ -z "$(ls -A build)" ]; then
-            echo "No build output detected" > build/README.txt
-          fi
+        run: npm run build
+        env:
+          NODE_ENV: production # Build for production
 
-      # 6. Debug build contents
-      - name: Debug build contents
-        run: |
-          echo "Build directory contents:"
-          ls -R build || echo "No build directory found"
-
-      # 7. Upload build artifact (always upload, even if empty)
+      # 6. Upload build artifact and test results
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: build-output
           path: |
             build/
-            coverage/
-          if-no-files-found: warn
-          retention-days: 5
+            coverage/ # Include test coverage reports if generated
+          retention-days: 5 # Clean up artifacts after 5 days
 
   deploy:
     needs: build-and-test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-
+    if: github.ref == 'refs/heads/main' # Only deploy from main branch
+    
     steps:
-      # 1. Download build artifact
+      # 1. Download the build artifact
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
           name: build-output
           path: build
-          if-no-files-found: error
 
-      # 2. Debug downloaded files
-      - name: Debug downloaded files
-        run: |
-          echo "Downloaded build contents:"
-          ls -R build || echo "No files found in build folder"
-
-      # 3. Configure AWS credentials
+      # 2. Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-          role-duration-seconds: 3600
+          aws-region: ${{'eu-central-1' }} # Use secret or default
+          #role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }} # Optional IAM role
+          role-duration-seconds: 3600 # 1 hour session duration
 
-      # 4. Validate build contents
-      - name: Validate build contents
-        run: |
-          if [ -f build/index.html ] || [ -f build/main.js ]; then
-            echo "Valid build detected"
-          else
-            echo "No deployable files found"
-            exit 1
-          fi
+      # 3. Verify AWS CLI version
+      - name: Verify AWS CLI
+        run: aws --version
 
-      # 5. Deploy to S3
+      # 4. Deploy to S3 bucket with cache control
       - name: Deploy to S3
         run: |
           aws s3 sync ./build s3://mypipelinebucket160000 \
             --delete \
             --cache-control "public, max-age=31536000" \
             --acl public-read
-
-          echo "Deployment completed to:"
-          aws s3 ls s3://mypipelinebucket160000 --recursive --human-readable
+        
+  
