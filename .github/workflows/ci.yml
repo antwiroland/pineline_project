@@ -9,48 +9,60 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-      
-    - name: Set up Node.js (example - change for your language)
-      uses: actions/setup-node@v2
-      with:
-        node-version: '14'
-        
-    - name: Install dependencies
-      run: npm install
-      
-    - name: Run tests
-      run: npm test
-      
-    - name: Build project
-      run: npm run build
 
-    - name: Upload build artifact
-      uses: actions/upload-artifact@v2
-      with:
-        name: build-output
-        path: build/
+    steps:
+      # 1. Checkout repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Set up Node.js (change if using another language)
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*' # latest LTS instead of Node 14
+          cache: 'npm' # built-in npm caching
+
+      # 3. Install dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # 4. Run tests
+      - name: Run tests
+        run: npm test
+
+      # 5. Build project
+      - name: Build project
+        run: npm run build
+
+      # 6. Upload build artifact for deployment
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: build/
 
   deploy:
     needs: build-and-test
     runs-on: ubuntu-latest
-    
+    if: github.ref == 'refs/heads/main' # Deploy only from main branch
+
     steps:
-    - name: Download build artifact
-      uses: actions/download-artifact@v2
-      with:
-        name: build-output
-        
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-        
-    - name: Deploy to S3
-      run: |
-        aws s3 sync ./build s3://mypipelinebucket160000 --delete
+      # 1. Download the build artifact
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: build
+
+      # 2. Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      # 3. Deploy to S3 bucket
+      - name: Deploy to S3
+        run: |
+          aws s3 sync ./build s3://mypipelinebucket160000 --delete
